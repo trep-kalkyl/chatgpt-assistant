@@ -36,9 +36,6 @@ class ModChatgptAssistantHelper {
       return;
     }
 
-    // Your OpenAI API credentials
-    $openaiApiKey = $mod_params->get('openai_api_key', '');
-
     $session = Factory::getSession();
     $messages = $session->get('chatgpt_assistant_messages', array(['role' => 'system', 'content' => $mod_params->get('initial_model_instruction', 'You are a helpful assistant.')]));
 
@@ -52,19 +49,19 @@ class ModChatgptAssistantHelper {
     if ($chat_limit > 0) {
       // Count user messages
       $responseData['message_count'] = 0;
-      foreach($messages as $message) {
-        if ($message['role'] == 'user') {
+      foreach($messages as $msg) {
+        if ($msg['role'] == 'user') {
           $responseData['message_count']++;
         }
       }
 
       if ($responseData['message_count'] == $chat_limit - 1) {
-        $responseData['warning'] = $mod_params->get('limit_reach_warning', 'System: We appreciate your questions. However, we would like to inform you that you have 1 more message to reach the maximum limit of messages to our automated assistant. If you need further assisatnce, please feel free to use our contact form. We are more than happy to help you there.');
+        $responseData['warning'] = $mod_params->get('limit_reach_warning', 'System: We appreciate your questions. However, we would like to inform you that you have 1 more message to reach the maximum limit of messages to our automated assistant. If you need further assistance, please feel free to use our contact form. We are more than happy to help you there.');
         $messages[] = ['role'=>'system', 'content'=>$mod_params->get('limit_reach_instruction', 'This is your penultimate response. Kindly ask the user to use the contact form for further assistance.')];
         $session->set('chatgpt_assistant_messages', $messages);
       }
       else if ($responseData['message_count'] > $chat_limit) { // Not equal, so that we can allow that one last message that we mentioned in the warning.
-        $responseData['error'] = $mod_params->get('limit_reach_error', 'System: Thank you for your questions! However, you have reached the maximum limit of messages to our automated assistant. If you need further assisatnce, please feel free to use our contact form. We are more than happy to help you there.');
+        $responseData['error'] = $mod_params->get('limit_reach_error', 'System: Thank you for your questions! However, you have reached the maximum limit of messages to our automated assistant. If you need further assistance, please feel free to use our contact form. We are more than happy to help you there.');
 
         // Remove the last message from the array.
         array_pop($messages);
@@ -75,67 +72,149 @@ class ModChatgptAssistantHelper {
     // If there's no error, send the data over.
     if (!isset($responseData['error'])) {
 
-      // Create the request payload for the OpenAI API
-      $requestPayload = [
-          'messages' => $messages,
-          'max_tokens' => (int) $mod_params->get('max_tokens', 50),
-          'temperature' => (float) $mod_params->get('temperature', 0.7),
-          'n' => 1, // Adjust the number of responses to generate
-          'stop' => ['\n'] // Specify the stopping condition for the response generation
-      ];
+      // Check if N8n webhook is selected
+      $chatModel = $mod_params->get('chat_model', 'gpt-4o');
+      $isN8nWebhook = ($chatModel === 'n8n-webhook');
 
-      if ($mod_params->get('include_model', '1')) {
-        $requestPayload['model'] = $mod_params->get('chat_model', 'gpt-4o');
-      }
+      if ($isN8nWebhook) {
+        // ===== N8N WEBHOOK INTEGRATION =====
+        
+        $n8nWebhookUrl = $mod_params->get('n8n_webhook_url', '');
+        
+        if (empty($n8nWebhookUrl)) {
+          $responseData['error'] = Text::_('MOD_CHATGPT_ASSISTANT_N8N_WEBHOOK_URL_MISSING');
+        } else {
+          // Get or create a session ID for this user
+          $sessionId = $session->getId();
+          
+          // Create the request payload for N8n webhook
+          $n8nPayload = [
+              'message' => $message,
+              'sessionId' => $sessionId
+          ];
 
-      // Make a POST request to the OpenAI API
-      $curl = curl_init();
+          // Make a POST request to the N8n webhook
+          $curl = curl_init();
 
-      curl_setopt_array($curl, [
-          CURLOPT_URL => $mod_params->get('openai_api_endpoint', 'https://api.openai.com/v1/chat/completions'),
-          CURLOPT_RETURNTRANSFER => true,
-          CURLOPT_ENCODING => '',
-          CURLOPT_MAXREDIRS => 10,
-          CURLOPT_TIMEOUT => $mod_params->get('curl_opt_timeout', 120),
-          CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-          CURLOPT_CUSTOMREQUEST => 'POST',
-          CURLOPT_POSTFIELDS => json_encode($requestPayload),
-          CURLOPT_HTTPHEADER => [
-              'Authorization: Bearer ' . $openaiApiKey,
-              'Content-Type: application/json'
-          ],
-      ]);
+          curl_setopt_array($curl, [
+              CURLOPT_URL => $n8nWebhookUrl,
+              CURLOPT_RETURNTRANSFER => true,
+              CURLOPT_ENCODING => '',
+              CURLOPT_MAXREDIRS => 10,
+              CURLOPT_TIMEOUT => $mod_params->get('curl_opt_timeout', 120),
+              CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+              CURLOPT_CUSTOMREQUEST => 'POST',
+              CURLOPT_POSTFIELDS => json_encode($n8nPayload),
+              CURLOPT_HTTPHEADER => [
+                  'Content-Type: application/json'
+              ],
+          ]);
 
-      $response = curl_exec($curl);
-      $err = curl_error($curl);
+          $response = curl_exec($curl);
+          $err = curl_error($curl);
 
-      curl_close($curl);
+          curl_close($curl);
 
-      // Handle the OpenAI API response
-      if ($err) {
-          // Error occurred during the API request
-          $responseData['error'] = sprintf(Text::_('MOD_CHATGPT_ASSISTANT_API_ERROR_OCCURRED'), $err);
-      } else {
-          // Decode the API response
-          $apiResponse = json_decode($response, true);
-          $responseData['apiResponse'] = $apiResponse;
-
-          if (isset($apiResponse['error']['message'])) {
-            $responseData['error'] = sprintf(Text::_('MOD_CHATGPT_ASSISTANT_API_ERROR_OCCURRED'), $apiResponse['error']['message']);
-          } else if (isset($apiResponse['choices'][0]['message'])) {
-              $messages[] = $apiResponse['choices'][0]['message'];
-              $session->set('chatgpt_assistant_messages', $messages);
-              $responseData['output'] = sprintf($mod_params->get('assistant_response_format', '%s'), $apiResponse['choices'][0]['message']['content']);
+          // Handle the N8n webhook response
+          if ($err) {
+              // Error occurred during the API request
+              $responseData['error'] = sprintf(Text::_('MOD_CHATGPT_ASSISTANT_API_ERROR_OCCURRED'), $err);
           } else {
-              $responseData['error'] = Text::_('MOD_CHATGPT_ASSISTANT_UNABLE_TO_GET_VALID_RESPONSE');
-          }
-      }
-    }
+              // Decode the N8n response
+              $n8nResponse = json_decode($response, true);
+              $responseData['apiResponse'] = $n8nResponse;
 
-    if ((isset($responseData['error'])) && ($mod_params->get('show_debug', 0))) {
-      $responseData['requestPayload'] = $requestPayload;
-      $responseData['curlResponse'] = $response;
-      $responseData['fullError'] = $err;
+              if (isset($n8nResponse['error'])) {
+                $responseData['error'] = sprintf(Text::_('MOD_CHATGPT_ASSISTANT_API_ERROR_OCCURRED'), $n8nResponse['error']);
+              } else if (isset($n8nResponse['response'])) {
+                  // N8n returns the response in a "response" field
+                  $assistantMessage = [
+                      'role' => 'assistant',
+                      'content' => $n8nResponse['response']
+                  ];
+                  $messages[] = $assistantMessage;
+                  $session->set('chatgpt_assistant_messages', $messages);
+                  $responseData['output'] = sprintf($mod_params->get('assistant_response_format', '%s'), $n8nResponse['response']);
+              } else {
+                  $responseData['error'] = Text::_('MOD_CHATGPT_ASSISTANT_UNABLE_TO_GET_VALID_RESPONSE');
+              }
+          }
+
+          if ((isset($responseData['error'])) && ($mod_params->get('show_debug', 0))) {
+            $responseData['requestPayload'] = $n8nPayload;
+            $responseData['curlResponse'] = $response;
+            $responseData['fullError'] = $err;
+          }
+        }
+
+      } else {
+        // ===== ORIGINAL OPENAI INTEGRATION =====
+        
+        // Your OpenAI API credentials
+        $openaiApiKey = $mod_params->get('openai_api_key', '');
+
+        // Create the request payload for the OpenAI API
+        $requestPayload = [
+            'messages' => $messages,
+            'max_tokens' => (int) $mod_params->get('max_tokens', 50),
+            'temperature' => (float) $mod_params->get('temperature', 0.7),
+            'n' => 1, // Adjust the number of responses to generate
+            'stop' => ['\n'] // Specify the stopping condition for the response generation
+        ];
+
+        if ($mod_params->get('include_model', '1')) {
+          $requestPayload['model'] = $chatModel;
+        }
+
+        // Make a POST request to the OpenAI API
+        $curl = curl_init();
+
+        curl_setopt_array($curl, [
+            CURLOPT_URL => $mod_params->get('openai_api_endpoint', 'https://api.openai.com/v1/chat/completions'),
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_ENCODING => '',
+            CURLOPT_MAXREDIRS => 10,
+            CURLOPT_TIMEOUT => $mod_params->get('curl_opt_timeout', 120),
+            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+            CURLOPT_CUSTOMREQUEST => 'POST',
+            CURLOPT_POSTFIELDS => json_encode($requestPayload),
+            CURLOPT_HTTPHEADER => [
+                'Authorization: Bearer ' . $openaiApiKey,
+                'Content-Type: application/json'
+            ],
+        ]);
+
+        $response = curl_exec($curl);
+        $err = curl_error($curl);
+
+        curl_close($curl);
+
+        // Handle the OpenAI API response
+        if ($err) {
+            // Error occurred during the API request
+            $responseData['error'] = sprintf(Text::_('MOD_CHATGPT_ASSISTANT_API_ERROR_OCCURRED'), $err);
+        } else {
+            // Decode the API response
+            $apiResponse = json_decode($response, true);
+            $responseData['apiResponse'] = $apiResponse;
+
+            if (isset($apiResponse['error']['message'])) {
+              $responseData['error'] = sprintf(Text::_('MOD_CHATGPT_ASSISTANT_API_ERROR_OCCURRED'), $apiResponse['error']['message']);
+            } else if (isset($apiResponse['choices'][0]['message'])) {
+                $messages[] = $apiResponse['choices'][0]['message'];
+                $session->set('chatgpt_assistant_messages', $messages);
+                $responseData['output'] = sprintf($mod_params->get('assistant_response_format', '%s'), $apiResponse['choices'][0]['message']['content']);
+            } else {
+                $responseData['error'] = Text::_('MOD_CHATGPT_ASSISTANT_UNABLE_TO_GET_VALID_RESPONSE');
+            }
+        }
+
+        if ((isset($responseData['error'])) && ($mod_params->get('show_debug', 0))) {
+          $responseData['requestPayload'] = $requestPayload;
+          $responseData['curlResponse'] = $response;
+          $responseData['fullError'] = $err;
+        }
+      }
     }
 
     return $responseData;
