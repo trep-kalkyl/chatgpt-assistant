@@ -7,8 +7,8 @@
     <license>http://www.gnu.org/licenses/gpl-3.0.html GNU/GPL</license>
     <authorEmail>mavrosxristoforos@gmail.com</authorEmail>
     <authorUrl>https://mavrosxristoforos.com/</authorUrl>
-<version>1.0.109</version>
-    <description>The ChatGPT Assistant module provides an interactive chat interface powered by OpenAI's GPT-3.5 model. Engage in natural language conversations with the AI assistant to get answers, assistance, and personalized responses. Simply click the chat button to open the interface and start chatting with the assistant. This module requires a valid OpenAI API key for integration with the powerful language model. Experience the convenience and power of AI-driven conversations with the ChatGPT Assistant module. Partially written using ChatGPT!</description>
+<version>1.0.110</version>
+    <description>The ChatGPT Assistant module provides an interactive chat interface powered by OpenAI's GPT-3.5 model or N8n workflow. Engage in natural language conversations with the AI assistant to get answers to your questions, receive recommendations, or have general conversations. Simply click on the chat button to start a conversation!</description>
     <files>
         <folder>tmpl</folder>
         <folder>fields</folder>
@@ -43,7 +43,7 @@
             <fieldset name="text" label="MOD_CHATGPT_ASSISTANT_FIELDSET_TEXT_LBL">
                 <field name="initial_system_message" type="editor" filter="raw" default="Hello and welcome to our chat! How may I help you today?" label="MOD_CHATGPT_ASSISTANT_INITIAL_SYSTEM_MESSAGE_LBL" description="MOD_CHATGPT_ASSISTANT_INITIAL_SYSTEM_MESSAGE_DESC"/>
                 <field name="limit_reach_warning" type="editor" filter="raw" default="System: We appreciate your questions. However, we would like to inform you that you have 1 more message to reach the maximum limit of messages to our automated assistant. If you need further assistance, please feel free to use our contact form. We are more than happy to help you there." label="MOD_CHATGPT_ASSISTANT_LIMIT_REACH_WARNING_LBL" description="MOD_CHATGPT_ASSISTANT_LIMIT_REACH_WARNING_DESC"/>
-                <field name="limit_reach_error" type="editor" filter="raw" default="System: Thank you for your questions! However, you have reached the maximum limit of messages to our automated assistant. If you need further assistance, please feel free to use our contact form. We are more than happy to help you there." label="MOD_CHATGPT_ASSISTANT_LIMIT_REACH_WARNING_LBL" description="MOD_CHATGPT_ASSISTANT_LIMIT_REACH_WARNING_DESC"/>
+                <field name="limit_reach_error" type="editor" filter="raw" default="System: Thank you for your questions! However, you have reached the maximum limit of messages to our automated assistant. If you need further assistance, please feel free to use our contact form. We are more than happy to help you there." label="MOD_CHATGPT_ASSISTANT_LIMIT_REACH_ERROR_LBL" description="MOD_CHATGPT_ASSISTANT_LIMIT_REACH_ERROR_DESC"/>
             </fieldset>
             <fieldset name="model" label="MOD_CHATGPT_ASSISTANT_FIELDSET_MODEL_LBL">
                 <field name="openai_api_endpoint" type="text" default="https://api.openai.com/v1/chat/completions" label="MOD_CHATGPT_ASSISTANT_OPENAI_API_ENDPOINT_LBL" description="MOD_CHATGPT_ASSISTANT_OPENAI_API_ENDPOINT_DESC"/>
@@ -64,14 +64,14 @@
                         <option value="gpt-3.5-turbo-16k">gpt-3.5-turbo-16k</option>
                         <option value="gpt-3.5-turbo-16k-0613">gpt-3.5-turbo-16k-0613</option>
                     </group>
-                    <group label="DeepSeek">
-                        <option value="deepseek-chat">DeepSeek-V3</option>
-                        <option value="deepseek-reasoner">DeepSeek-R1</option>
+                    <group label="N8n Workflow">
+                        <option value="n8n-webhook">N8n Webhook</option>
                     </group>
                 </field>
+                <field name="n8n_webhook_url" type="text" default="" label="MOD_CHATGPT_ASSISTANT_N8N_WEBHOOK_URL_LBL" description="MOD_CHATGPT_ASSISTANT_N8N_WEBHOOK_URL_DESC" showon="chat_model:n8n-webhook"/>
                 <field name="max_tokens" type="number" default="50" label="MOD_CHATGPT_ASSISTANT_MAX_TOKENS_LBL" description="MOD_CHATGPT_ASSISTANT_MAX_TOKENS_DESC" step="1" min="1"/>
                 <field name="temperature" type="number" default="0.7" label="MOD_CHATGPT_ASSISTANT_TEMPERATURE_LBL" description="MOD_CHATGPT_ASSISTANT_TEMPERATURE_DESC" step="0.01" min="0"/>
-                <field name="user_message_format" type="textarea" default="%s" label="MOD_CHATGPT_ASSISTANT_USER_MESSAGE_FORMAT_LBL" description="MOD_CHATGPT_ASSISTANT_USER_MESSAGE_FORMAT_DESC"/>
+                <field name="user_question_format" type="textarea" default="%s" label="MOD_CHATGPT_ASSISTANT_USER_MESSAGE_FORMAT_LBL" description="MOD_CHATGPT_ASSISTANT_USER_MESSAGE_FORMAT_DESC"/>
                 <field name="assistant_response_format" type="textarea" default="%s" label="MOD_CHATGPT_ASSISTANT_ASSISTANT_RESPONSE_FORMAT_LBL" description="MOD_CHATGPT_ASSISTANT_ASSISTANT_RESPONSE_FORMAT_DESC"/>
                 <field name="limit_reach_instruction" type="textarea" default="This is your penultimate response. Kindly ask the user to use the contact form for further assistance." label="MOD_CHATGPT_ASSISTANT_LIMIT_REACH_INSTRUCTION_LBL" description="MOD_CHATGPT_ASSISTANT_LIMIT_REACH_INSTRUCTION_DESC"/>
             </fieldset>
@@ -86,7 +86,7 @@
                     <option value="0">JNO</option>
                     <option value="1">JYES</option>
                 </field>
-                <field name="fontawesome_cdn" type="text" default="https://use.fontawesome.com/releases/v5.0.10/css/all.css" label="MOD_CHATGPT_ASSISTANT_FONTAWESOME_CDN_LBL" description="MOD_CHATGPT_ASSISTANT_FONTAWESOME_CDN_DESC" showon="include_fontawesome:1"/>
+                <field name="fontawesome_cdn" type="text" default="https://use.fontawesome.com/releases/v5.0.10/css/all.css" label="MOD_CHATGPT_ASSISTANT_FONTAWESOME_CDN_LBL" description="MOD_CHATGPT_ASSISTANT_FONTAWESOME_CDN_DESC"/>
                 <field name="curl_opt_timeout" type="number" default="120" label="MOD_CHATGPT_ASSISTANT_CURL_OPT_TIMEOUT_LBL" description="MOD_CHATGPT_ASSISTANT_CURL_OPT_TIMEOUT_DESC"/>
                 <field name="show_debug" type="radio" class="btn-group btn-group-yesno" default="0" label="MOD_CHATGPT_ASSISTANT_SHOW_DEBUG_LBL" description="MOD_CHATGPT_ASSISTANT_SHOW_DEBUG_DESC">
                     <option value="0">JNO</option>
